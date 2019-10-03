@@ -53,14 +53,12 @@ module Crypto
 
     def shift_d key
       alphabet = ('a'..'z').to_a
-      table = alphabet.inject({}) { |ht, letter| ht[letter] = alphabet[(alphabet.index(letter)+key)%26]; ht }
-      res_str = self.clean.chars.inject('') { |res, c| res += table[c]; res }
+      table = alphabet.inject({}) { |ht, letter| ht[letter] = alphabet[(alphabet.index(letter)-key)%26]; ht }
+      res_str = self.clean.downcase.chars.inject('') { |res, c| res += table[c]; res }
       return res_str.downcase
     end
     def shift_e key
-      alphabet = ('a'..'z').to_a
-      table = alphabet.inject({}) { |ht, letter| ht[letter] = alphabet[(alphabet.index(letter)-key)%26]; ht }
-      res_str = self.clean.chars.inject('') { |res, c| res += table[c]; res }
+      res_str = self.clean.chars.inject('') { |res, c| res += (key.times.inject(c) {|c| c.next[0] }) }
       res_str.upcase
     end
 
@@ -79,7 +77,7 @@ module Crypto
     def vig_d keyword
       alphabet = ('a'..'z').to_a
       keyarr = keyword.downcase.chars.map { |c| alphabet.index(c) }
-      str = self.clean.split.join
+      str = self.clean.downcase.split.join
       raise "Only letters supported." if !str.match(/^[[:alpha:]]+$/)
       result =  str.chars.each_with_index.inject([]) do |arr, (c, str_position)|
         arr.append alphabet[(alphabet.index(c)-(keyarr[str_position % keyarr.length])) % 26]
@@ -99,7 +97,7 @@ module Crypto
     end
 
     def clean
-      self.downcase.gsub(' ', '').gsub /[^a-zA-Z0-9]/, ''
+      self.downcase.gsub(/\n/, '').gsub(' ', '').gsub /[^a-zA-Z]/, ''
     end
   end
 
@@ -107,13 +105,14 @@ module Crypto
     class VigAnalyze
       attr_reader :nprime
       def initialize(str, keylen)
+        str = str.clean.downcase
+        @nprime = (str.length.to_f/keylen).ceil
         @ys = {}
         (1..keylen).each do |x|
           y = {}
           (x-1..str.length-1).step(keylen) { |i| y.include?(str[i].downcase.to_sym) ? y[str[i].downcase.to_sym] += 1 : y[str[i].downcase.to_sym] = 1 }
           @ys["y#{x}".to_sym] = y
         end
-        @nprime = (str.length.to_f/@ys.length).ceil
       end
       def make_table
         @ys.inject({}) { |table, (y, vs)| r = make_row(y, @nprime).first; table[r[0]] = r[1]; table}
