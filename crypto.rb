@@ -27,6 +27,40 @@ module Crypto
     y: 0.020,
     z: 0.001
   }
+  BIT5 =  [
+    [0, 'A', '00000'],
+    [1, 'B', '00001'],
+    [2, 'C', '00010'],
+    [3, 'D', '00011'],
+    [4, 'E', '00100'],
+    [5, 'F', '00101'],
+    [6, 'G', '00110'],
+    [7, 'H', '00111'],
+    [8, 'I', '01000'],
+    [9, 'J', '01001'],
+    [10, 'K', '01010'],
+    [11, 'L', '01011'],
+    [12, 'M', '01100'],
+    [13, 'N', '01101'],
+    [14, 'O', '01110'],
+    [15, 'P', '01111'],
+    [16, 'Q', '10000'],
+    [17, 'R', '10001'],
+    [18, 'S', '10010'],
+    [19, 'T', '10011'],
+    [20, 'U', '10100'],
+    [21, 'V', '10101'],
+    [22, 'W', '10110'],
+    [23, 'X', '10111'],
+    [24, 'Y', '11000'],
+    [25, 'Z', '11001'],
+    [26, '.', '11010'],
+    [27, '!', '11011'],
+    [28, '?', '11100'],
+    [29, '☻', '11101'],
+    [30, '☺', '11110'],
+    [31, '-' ,'11111']
+  ]
   module String
     # Index of coincidence
     def ioc
@@ -98,6 +132,24 @@ module Crypto
 
     def clean
       self.downcase.gsub(/\n/, '').gsub(' ', '').gsub /[^a-zA-Z]/, ''
+    end
+  end
+
+  module Integer
+    def norm (mod=26)
+      self % mod
+    end
+    def inv (mod=26)
+      return nil unless self.gcd(mod) == 1
+
+      ext_euclidian = ->(a,m) do
+        return 1, 0 if m == 0
+        q, r = a.divmod m
+        s, t = ext_euclidian.(m, r)
+        return t, s - q * t
+      end
+
+      ext_euclidian.(self, mod).first.norm
     end
   end
 
