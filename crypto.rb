@@ -130,6 +130,11 @@ module Crypto
       puts "Probable keywords: #{analysis.get_keywords}"
     end
 
+    def spn_encrypt s_tab, p_tab, key, keyschedule_fn, nrounds
+      spn = SPN.new s_tab, p_tab, key, keyschedule_fn, nrounds
+      spn.encrypt(self.gsub(' ', '').to_i(2))
+    end
+
     def clean
       self.downcase.gsub(/\n/, '').gsub(' ', '').gsub /[^a-zA-Z]/, ''
     end
@@ -150,6 +155,11 @@ module Crypto
       end
 
       ext_euclidian.(self, mod).first.norm
+    end
+
+     def spn_encrypt s_tab, p_tab, key, keyschedule_fn, nrounds
+      spn = SPN.new s_tab, p_tab, key, keyschedule_fn, nrounds
+      spn.encrypt(self)
     end
   end
 
@@ -215,6 +225,62 @@ module Crypto
       def print_freqs
         @ys
       end
+    end
+  end
+
+  class SPN
+    def initialize s_tab, p_tab, key, keyschedule_fn, nrounds
+      @s_tab = s_tab
+      @p_tab = p_tab
+      @keyschedule_fn = keyschedule_fn
+      @key = key
+      @nrounds = nrounds
+    end
+
+    # Takes i as round number, returns number
+    def gen_roundkey i
+      @keyschedule_fn.(i, @key)
+    end
+
+    # Takes plaintext as number, returns num
+    def add_roundkey x, round_n
+      x ^ (gen_roundkey round_n)
+    end
+
+    # Takes (hex) num, returns arr of (hex) nums
+    def subst orig
+      bits = ("%016b" % orig).split('').each_slice(4).to_a.map { |arr| arr.join }
+      bits = bits.map do |str|
+        @s_tab[str.to_i(2)]
+      end
+    end
+
+    # Takes arr of (hex) nums, returns number
+    def perm hex_val_arr
+      bit_arr = hex_val_arr.map {|x| ("%04b" % x)}.join('').split('')
+      res = bit_arr.each_with_index.inject([]) { |acc, (bit, i)| acc << bit_arr[@p_tab[i]] }
+      res.join('')
+    end
+
+    def encrypt ptext
+      puts "Plaintext: 0x#{ptext.to_s(16)}"
+      10.times { print "-" }; puts
+      x = ptext
+      (1..@nrounds).each do |round|
+        u = self.add_roundkey(x, round)
+        puts "u#{round}: 0x#{u.to_s 16}"
+        v = self.subst(u)
+        puts "v#{round}: 0x#{v.map {|x| x.to_s 16}.join}"
+        w = self.perm(v)
+        puts "w#{round}: #{w.gsub(/(.{4})/, '\1 ')}"
+        x = w.to_i(2)
+        10.times { print "-" }; puts
+      end
+      y = x
+
+      puts "Ciphertext:"
+      puts "bin #{("%016b" % y).gsub(/(.{4})/, '\1 ')}"
+      puts "hex #{("%04x" % y)}"
     end
   end
 end
