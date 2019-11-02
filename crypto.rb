@@ -80,9 +80,23 @@ module Crypto
       end
     end
 
+    def to_bin
+      self.upcase.chars.inject([]) do |acc, c|
+        acc << Crypto::BIT5.detect { |x| x[1] == c }.last
+      end.join
+    end
+
+    def space_n n
+      self.gsub(/(.{#{n}})/, '\1 ').rstrip
+    end
+
     def print_freq
       freq.sort_by { |c,f| c }.each { |(c,f)| puts "#{c}: #{f}" }
       nil
+    end
+
+    def rotate_left n
+      self.chars.rotate(n).join
     end
 
     def shift_d key
@@ -281,6 +295,251 @@ module Crypto
       puts "Ciphertext:"
       puts "bin #{("%016b" % y).gsub(/(.{4})/, '\1 ')}"
       puts "hex #{("%04x" % y)}"
+    end
+  end
+
+  class DES
+    def ip(x)
+      chars = x.chars
+      permuted = [
+        chars[57], chars[49], chars[41], chars[33], chars[25], chars[17], chars[9], chars[1],
+        chars[59], chars[51], chars[43], chars[35], chars[27], chars[19], chars[11], chars[3],
+        chars[61], chars[53], chars[45], chars[37], chars[29], chars[21], chars[13], chars[5],
+        chars[63], chars[55], chars[47], chars[39], chars[31], chars[23], chars[15], chars[7],
+        chars[56], chars[48], chars[40], chars[32], chars[24], chars[16], chars[8], chars[0],
+        chars[58], chars[50], chars[42], chars[34], chars[26], chars[18], chars[10], chars[2],
+        chars[60], chars[52], chars[44], chars[36], chars[28], chars[20], chars[12], chars[4],
+        chars[62], chars[54], chars[46], chars[38], chars[30], chars[22], chars[14], chars[6]
+      ].join
+
+      return permuted[0..(permuted.length/2)-1], permuted[permuted.length/2..]
+    end
+
+    def pc1(k)
+      chars = k.chars
+      permuted = [
+        chars[56], chars[48], chars[40], chars[32], chars[24], chars[16], chars[8],
+        chars[0], chars[57], chars[49], chars[41], chars[33], chars[25], chars[17],
+        chars[9], chars[1], chars[58], chars[50], chars[42], chars[34], chars[26],
+        chars[18], chars[10], chars[2], chars[59], chars[51], chars[43], chars[35],
+        chars[62], chars[54], chars[46], chars[38], chars[30], chars[22], chars[14],
+        chars[6], chars[61], chars[53], chars[45], chars[37], chars[29], chars[21],
+        chars[13], chars[5], chars[60], chars[52], chars[44], chars[36], chars[28],
+        chars[20], chars[12], chars[4], chars[27], chars[19], chars[11], chars[3]
+      ].join
+
+      return permuted[0..(permuted.length/2)-1], permuted[(permuted.length/2)..]
+    end
+
+    def pc2(cn, dn)
+      chars = (cn+dn).chars
+      [
+        chars[13], chars[16], chars[10], chars[23], chars[0], chars[4],
+        chars[2], chars[27], chars[14], chars[5], chars[20], chars[9],
+        chars[22], chars[18], chars[11], chars[3], chars[25], chars[7],
+        chars[15], chars[6], chars[26], chars[19], chars[12], chars[1],
+        chars[40], chars[51], chars[30], chars[36], chars[46], chars[54],
+        chars[29], chars[39], chars[50], chars[44], chars[32], chars[47],
+        chars[43], chars[48], chars[38], chars[55], chars[33], chars[52],
+        chars[45], chars[41], chars[49], chars[35], chars[28], chars[31]
+      ].join
+    end
+
+    def e a
+      chars = a.chars
+      [
+        chars[31], chars[0], chars[1], chars[2], chars[3], chars[4],
+        chars[3], chars[4], chars[5], chars[6], chars[7], chars[8],
+        chars[7], chars[8], chars[9], chars[10], chars[11], chars[12],
+        chars[11], chars[12], chars[13], chars[14], chars[15], chars[16],
+        chars[15], chars[16], chars[17], chars[18], chars[19], chars[20],
+        chars[19], chars[20], chars[21], chars[22], chars[23], chars[24],
+        chars[23], chars[24], chars[25], chars[26], chars[27], chars[28],
+        chars[27], chars[28], chars[29], chars[30], chars[31], chars[0]
+      ].join
+    end
+
+    def c blocks
+      s_boxes = [
+        # S1
+        [
+          [14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7],
+          [0, 15, 7, 4, 14, 2, 13, 1, 10, 6, 12, 11, 9, 5, 3, 8],
+          [4, 1, 14, 8, 13, 6, 2, 11, 15, 12, 9, 7, 3, 10, 5, 0],
+          [15, 12, 8, 2, 4, 9, 1, 7, 5, 11, 3, 14, 10, 0, 6, 13]
+        ],
+        # S2
+        [
+          [15, 1, 8, 14, 6, 11, 3, 4, 9, 7, 2, 13, 12, 0, 5, 10],
+          [3, 13, 4, 7, 15, 2, 8, 14, 12, 0, 1, 10, 6, 9, 11, 5],
+          [0, 14, 7, 11, 10, 4, 13, 1, 5, 8, 12, 6, 9, 3, 2, 15],
+          [13, 8, 10, 1, 3, 15, 4, 2, 11, 6, 7, 12, 0, 5, 14, 9]
+        ],
+        # S3
+        [
+          [10, 0, 9, 14, 6, 3, 15, 5, 1, 13, 12, 7, 11, 4, 2, 8],
+          [13, 7, 0, 9, 3, 4, 6, 10, 2, 8, 5, 14, 12, 11, 15, 1],
+          [13, 6, 4, 9, 8, 15, 3, 0, 11, 1, 2, 12, 5, 10, 14, 7],
+          [1, 10, 13, 0, 6, 9, 8, 7, 4, 15, 14, 3, 11, 5, 2, 12]
+        ],
+        # S4
+        [
+          [7, 13, 14, 3, 0, 6, 9, 10, 1, 2, 8, 5, 11, 12, 4, 15],
+          [13, 8, 11, 5, 6, 15, 0, 3, 4, 7, 2, 12, 1, 10, 14, 9],
+          [10, 6, 9, 0, 12, 11, 7, 13, 15, 1, 3, 14, 5, 2, 8, 4],
+          [3, 15, 0, 6, 10, 1, 13, 8, 9, 4, 5, 11, 12, 7, 2, 14],
+        ],
+        # S5
+        [
+          [2, 12, 4, 1, 7, 10, 11, 6, 8, 5, 3, 15, 13, 0, 14, 9],
+          [14, 11, 2, 12, 4, 7, 13, 1, 5, 0, 15, 10, 3, 9, 8, 6],
+          [4, 2, 1, 11, 10, 13, 7, 8, 15, 9, 12, 5, 6, 3, 0, 14],
+          [11, 8, 12, 7, 1, 14, 2, 13, 6, 15, 0, 9, 10, 4, 5, 3]
+        ],
+        # S6
+        [
+          [12, 1, 10, 15, 9, 2, 6, 8, 0, 13, 3, 4, 14, 7, 5, 11],
+          [10, 15, 4, 2, 7, 12, 9, 5, 6, 1, 13, 14, 0, 11, 3, 8],
+          [9, 14, 15, 5, 2, 8, 12, 3, 7, 0, 4, 10, 1, 13, 11, 6],
+          [4, 3, 2, 12, 9, 5, 15, 10, 11, 14, 1, 7, 6, 0, 8, 13]
+        ],
+        # S7
+        [
+          [4, 11, 2, 14, 15, 0, 8, 13, 3, 12, 9, 7, 5, 10, 6, 1],
+          [13, 0, 11, 7, 4, 9, 1, 10, 14, 3, 5, 12, 2, 15, 8, 6],
+          [1, 4, 11, 13, 12, 3, 7, 14, 10, 15, 6, 8, 0, 5, 9, 2],
+          [6, 11, 13, 8, 1, 4, 10, 7, 9, 5, 0, 15, 14, 2, 3, 12]
+        ],
+        # S8
+        [
+          [13, 2, 8, 4, 6, 15, 11, 1, 10, 9, 3, 14, 5, 0, 12, 7],
+          [1, 15, 13, 8, 10, 3, 7, 4, 12, 5, 6, 11, 0, 14, 9, 2],
+          [7, 11, 4, 1, 9, 12, 14, 2, 0, 6, 10, 13, 15, 3, 5, 8],
+          [2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11]
+        ]
+      ]
+
+      blocks.each_with_index.map do |block, i|
+        row_idx = (block[0]+block[5]).to_i(2)
+        col_idx = (block[1..4]).to_i(2)
+        ("%04b" % s_boxes[i][row_idx][col_idx])
+      end.join
+    end
+
+    def p_perm c
+      chars = c.chars
+      [
+        chars[15], chars[6],  chars[19], chars[20],
+        chars[28], chars[11], chars[27], chars[16],
+        chars[0],  chars[14], chars[22], chars[25],
+        chars[4],  chars[17], chars[30], chars[9],
+        chars[1],  chars[7],  chars[23], chars[13],
+        chars[31], chars[26], chars[2],  chars[8],
+        chars[18], chars[12], chars[29], chars[5],
+        chars[21], chars[10], chars[3],  chars[24]
+      ].join
+    end
+    def f a, j
+      puts "Calculating f"
+      puts "\trprev: #{a}"
+      puts "\tkey: #{j}"
+      puts "\tE(A): #{(e a)}"
+      ea_plus_j = ("%048b" % ((e a).to_i(2) ^ j.to_i(2)))
+      puts "\tres: #{ea_plus_j}"
+      blocks = ea_plus_j.chars.each_slice(6).to_a.map(&:join)
+      c = c(blocks)
+      puts "\tC: #{c}"
+      perm = p_perm c
+      puts "\tP: #{perm}"
+      perm
+    end
+
+    def gen_keys_upto n, hex_key
+      bin_key = ("%064b" % hex_key)
+
+      keys = []
+      cds = []
+
+      cds << pc1(bin_key)
+
+      1.upto(n) do |i|
+        ci, di = cds[i-1]
+        if [1,2,9,16].include? i
+          ci = ci.rotate_left(1)
+          di = di.rotate_left(1)
+        else
+          ci = ci.rotate_left(2)
+          di = di.rotate_left(2)
+        end
+        cds << [ci, di]
+        keys[i] = pc2(ci, di)
+      end
+
+      keys
+    end
+
+    def g l, r, k
+      li = r
+      fres = f(r,k)
+      ri = ("%032b" % (l.to_i(2) ^ fres.to_i(2)))
+
+      return li, ri
+    end
+
+    def inv_ip r, l
+      chars = (r+l).chars
+      [
+        chars[39], chars[7], chars[47], chars[15], chars[55], chars[23], chars[63], chars[31],
+        chars[38], chars[6], chars[46], chars[14], chars[54], chars[22], chars[62], chars[30],
+        chars[37], chars[5], chars[45], chars[13], chars[53], chars[21], chars[61], chars[29],
+        chars[36], chars[4], chars[44], chars[12], chars[52], chars[20], chars[60], chars[28],
+        chars[35], chars[3], chars[43], chars[11], chars[51], chars[19], chars[59], chars[27],
+        chars[34], chars[2], chars[42], chars[10], chars[50], chars[18], chars[58], chars[26],
+        chars[33], chars[1], chars[41], chars[9], chars[49], chars[17], chars[57], chars[25],
+        chars[32], chars[0], chars[40], chars[8], chars[48], chars[16], chars[56], chars[24]
+      ].join
+    end
+
+    def do_encryption nrounds
+      puts "DES Encryption"
+      puts "Plaintext: #{("%0x" % @hex_num)}"
+      puts "Key: #{("%x" % @hex_key)}"
+      puts
+
+      bin_num = ("%064b" % @hex_num)
+      keys = gen_keys_upto(nrounds, @hex_key)
+
+      lrs = []
+      lrs << ip(bin_num)
+
+      puts "L0: #{lrs.first.first}"
+      puts "R0: #{lrs.first.last}"
+      80.times { print "-" }; puts
+
+      1.upto(nrounds) do |i|
+        lprev, rprev = lrs.last
+        lrs << g(lprev, rprev, keys[i])
+
+        puts "K#{i}: #{keys[i]}"
+        puts "L#{i}: #{lrs.last.first}"
+        puts "R#{i}: #{lrs.last.last}"
+        80.times { print "-" }; puts
+      end
+
+      llast, rlast = lrs.last
+      ciphertext = inv_ip(rlast, llast)
+
+      puts "Ciphertext:"
+      puts "hex #{ciphertext.to_i(2).to_s(16)}"
+      puts "bin #{ciphertext.space_n(4)}"
+
+      return ciphertext.to_i(2)
+    end
+
+    attr_reader :hex_num, :hex_key
+    def initialize hex_num, hex_key
+      @hex_num = hex_num
+      @hex_key = hex_key
     end
   end
 end

@@ -1,7 +1,8 @@
 require_relative "crypto.rb"
 
-# Add cryptography capabilities to strings from my module
+# Add cryptography capabilities to strings & ints from my module
 String.include Crypto::String
+Integer.include Crypto::Integer
 
 # Start working:
 #
@@ -75,3 +76,11 @@ key = 0xA1D5B08F
 num_rounds = 5
 
 "0010 0110 1011 0111".spn_encrypt s_table, p_table, key, keyschedule_fn, num_rounds
+
+
+# Encryption using DES
+plaintext = 0x0123456789ABCDEF
+key = 0x133457799BBCDFF1
+num_rounds = 16 # for full DES
+des = Crypto::DES.new plaintext, key
+des.do_encryption num_rounds
