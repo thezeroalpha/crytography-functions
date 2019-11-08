@@ -282,7 +282,7 @@ module Crypto
       x = ptext
       (1..@nrounds).each do |round|
         u = self.add_roundkey(x, round)
-        puts "u#{round}: 0x#{u.to_s 16}"
+        puts "u#{round}: 0x#{u.to_s 16} (#{("%016b" % u).space_n 4})"
         v = self.subst(u)
         puts "v#{round}: 0x#{v.map {|x| x.to_s 16}.join}"
         w = self.perm(v)
@@ -299,7 +299,7 @@ module Crypto
   end
 
   class DES
-    def ip(x)
+    def self.ip(x)
       chars = x.chars
       permuted = [
         chars[57], chars[49], chars[41], chars[33], chars[25], chars[17], chars[9], chars[1],
@@ -315,7 +315,7 @@ module Crypto
       return permuted[0..(permuted.length/2)-1], permuted[permuted.length/2..]
     end
 
-    def pc1(k)
+    def self.pc1(k)
       chars = k.chars
       permuted = [
         chars[56], chars[48], chars[40], chars[32], chars[24], chars[16], chars[8],
@@ -331,7 +331,7 @@ module Crypto
       return permuted[0..(permuted.length/2)-1], permuted[(permuted.length/2)..]
     end
 
-    def pc2(cn, dn)
+    def self.pc2(cn, dn)
       chars = (cn+dn).chars
       [
         chars[13], chars[16], chars[10], chars[23], chars[0], chars[4],
@@ -345,7 +345,7 @@ module Crypto
       ].join
     end
 
-    def e a
+    def self.e a
       chars = a.chars
       [
         chars[31], chars[0], chars[1], chars[2], chars[3], chars[4],
@@ -359,7 +359,7 @@ module Crypto
       ].join
     end
 
-    def c blocks
+    def self.c blocks
       s_boxes = [
         # S1
         [
@@ -419,14 +419,16 @@ module Crypto
         ]
       ]
 
+      puts "\tS-boxes:"
       blocks.each_with_index.map do |block, i|
         row_idx = (block[0]+block[5]).to_i(2)
         col_idx = (block[1..4]).to_i(2)
+        puts "\t\tProcessing: #{block.to_s} (box #{i+1}, row #{row_idx}, col #{col_idx})"
         ("%04b" % s_boxes[i][row_idx][col_idx])
       end.join
     end
 
-    def p_perm c
+    def self.p_perm c
       chars = c.chars
       [
         chars[15], chars[6],  chars[19], chars[20],
@@ -439,28 +441,29 @@ module Crypto
         chars[21], chars[10], chars[3],  chars[24]
       ].join
     end
-    def f a, j
+    def self.f a, j
       puts "Calculating f"
-      puts "\trprev: #{a}"
+      puts "\trprev: #{a.space_n 4}"
       puts "\tkey: #{j}"
-      puts "\tE(A): #{(e a)}"
-      ea_plus_j = ("%048b" % ((e a).to_i(2) ^ j.to_i(2)))
-      puts "\tres: #{ea_plus_j}"
+      puts "\tE(A): #{(self.e a).space_n 4}"
+      ea_plus_j = ("%048b" % ((self.e a).to_i(2) ^ j.to_i(2)))
+      puts "\tE(A)+J: #{ea_plus_j.space_n 6}"
       blocks = ea_plus_j.chars.each_slice(6).to_a.map(&:join)
-      c = c(blocks)
-      puts "\tC: #{c}"
-      perm = p_perm c
-      puts "\tP: #{perm}"
+      c = self.c(blocks)
+      puts "\tC: #{c.space_n 4}"
+      perm = self.p_perm c
+      puts "\tP: #{perm.space_n 4}"
       perm
     end
 
-    def gen_keys_upto n, hex_key
+    def self.gen_keys_upto n, hex_key
+      puts "# GENERATING KEYS... #"
       bin_key = ("%064b" % hex_key)
 
       keys = []
       cds = []
 
-      cds << pc1(bin_key)
+      cds << self.pc1(bin_key)
 
       1.upto(n) do |i|
         ci, di = cds[i-1]
@@ -471,16 +474,19 @@ module Crypto
           ci = ci.rotate_left(2)
           di = di.rotate_left(2)
         end
+        puts "C#{i}: #{ci.space_n 4}"
+        puts "D#{i}: #{di.space_n 4}"
+        80.times { print "-" }; puts
         cds << [ci, di]
-        keys[i] = pc2(ci, di)
+        keys[i] = self.pc2(ci, di)
       end
 
       keys
     end
 
-    def g l, r, k
+    def self.g l, r, k
       li = r
-      fres = f(r,k)
+      fres = self.f(r,k)
       ri = ("%032b" % (l.to_i(2) ^ fres.to_i(2)))
 
       return li, ri
@@ -510,19 +516,20 @@ module Crypto
       keys = gen_keys_upto(nrounds, @hex_key)
 
       lrs = []
-      lrs << ip(bin_num)
+      lrs << self.ip(bin_num)
 
+      puts "\n# ENCRYPTING #"
       puts "L0: #{lrs.first.first}"
       puts "R0: #{lrs.first.last}"
       80.times { print "-" }; puts
 
       1.upto(nrounds) do |i|
         lprev, rprev = lrs.last
-        lrs << g(lprev, rprev, keys[i])
+        lrs << self.g(lprev, rprev, keys[i])
 
-        puts "K#{i}: #{keys[i]}"
-        puts "L#{i}: #{lrs.last.first}"
-        puts "R#{i}: #{lrs.last.last}"
+        puts "K#{i}: #{keys[i].space_n 4}"
+        puts "L#{i}: #{lrs.last.first.space_n 4}"
+        puts "R#{i}: #{lrs.last.last.space_n 4}"
         80.times { print "-" }; puts
       end
 
